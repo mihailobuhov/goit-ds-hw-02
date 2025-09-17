@@ -1,36 +1,65 @@
 import sqlite3
+from random import choice, randint
+
 from faker import Faker
-import random
 
-def seed_database():
-    conn = sqlite3.connect("tasks.db")
-    cursor = conn.cursor()
-    fake = Faker()
 
-    statuses = ['new', 'in progress', 'completed']
-    cursor.executemany("INSERT OR IGNORE INTO status (name) VALUES (?)", [(s,) for s in statuses])
 
-    users = [(fake.name(), fake.unique.email()) for _ in range(10)]
-    cursor.executemany("INSERT INTO users (fullname, email) VALUES (?, ?)", users)
+NUMBER_USERS = 10
+STATUS = [('new',), ('in progress',), ('completed',)]
+NUMBER_TASKS = 20
+fake_data = Faker()
+def generate_fake_data(number_users, number_tasks)->tuple:
+    fake_users = [(fake_data.name(), fake_data.email()) for _ in range(number_users)]
 
-    cursor.execute("SELECT id FROM users")
-    user_ids = [row[0] for row in cursor.fetchall()]
-    cursor.execute("SELECT id FROM status")
-    status_ids = [row[0] for row in cursor.fetchall()]
+    fake_tasks = []
+    fake_description = []
 
-    tasks = [
-        (
-            fake.sentence(nb_words=4),
-            fake.text(max_nb_chars=200) if random.choice([True, False]) else None,
-            random.choice(status_ids),
-            random.choice(user_ids)
-        )
-        for _ in range(30)
-    ]
-    cursor.executemany("INSERT INTO tasks (title, description, status_id, user_id) VALUES (?, ?, ?, ?)", tasks)
+    for _ in range(number_tasks):
+        fake_tasks.append(fake_data.sentence())
 
-    conn.commit()
-    conn.close()
+    for _ in range (number_tasks):
+        fake_description.append(fake_data.paragraph(nb_sentences=2))
+        
+
+    return fake_users, fake_tasks, fake_description
+
+def prepare_data(users,tasks,descriptions)->tuple:
+    for_users =[]
+    for name,email in users:
+        for_users.append((name,email), )
+
+
+
+    for_status = STATUS
+
+    for_tasks = []
+    for task in tasks:
+        for_tasks.append((task, choice(descriptions), randint(1, 3), randint(1,NUMBER_USERS) ))
+    return for_users,for_tasks,for_status
+
+def insert_data_to_db(users,tasks,status):
+
+    with sqlite3.connect('tasks.db') as con:
+
+        cur = con.cursor()
+        sql_to_users = '''INSERT INTO users(fullname,email) VALUES (?, ?) '''
+
+        cur.executemany(sql_to_users,users)
+
+
+        sql_to_status = '''INSERT OR IGNORE INTO status(name) VALUES (?) '''
+        cur.executemany(sql_to_status,status)
+
+        sql_to_tasks = '''INSERT INTO tasks(title, description,status_id,user_id) VALUES (?,?,?,?) '''
+        cur.executemany(sql_to_tasks,tasks)
+
+        con.commit()
+
 
 if __name__ == "__main__":
-    seed_database()
+    users,tasks,status = prepare_data(*generate_fake_data(NUMBER_USERS,NUMBER_TASKS))
+    insert_data_to_db(users, tasks, status)
+
+
+
